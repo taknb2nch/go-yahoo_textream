@@ -1,0 +1,18 @@
+	<table>
+		<thead>
+			<tr>
+				<th>id</th>
+				<th>名前</th>
+				<th>サイトリンク</th>
+			</tr>
+		</thead>
+		<tbody>
+{{range $i, $user := .}}
+			<tr>
+				<td>{{$user.Id}}</td>
+				<td><a href="/posts/{{$user.Id}}/" target="_self">{{if $user.DisplayName.Valid}}{{$user.DisplayName.String}}{{else}}{{$user.YahooId}}{{end}}</a></td>
+				<td><a href="{{$user.Url}}" target="_blank">サイトリンク</a></td>
+			</tr>
+{{end}}
+		</tbody>
+	</table>

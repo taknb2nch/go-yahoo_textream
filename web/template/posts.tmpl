@@ -1,0 +1,27 @@
+	<table>
+		<tbody>
+{{range $i, $post := .}}
+			<tr>
+				<td>
+					<div>
+						<a href="{{$post.BrandUrl}}" target="_blank">{{$post.BrandName}}</a>
+					</div>
+					<div>
+						{{$post.CommentNo}} ： <a href="{{$post.Url}}" target="_blank">{{$post.Title}}</a>
+					</div>
+					{{if $post.RefNo.Valid}}
+					<div>
+						&gt;<a href="{{$post.RefUrl.String}}" target="_blank">{{$post.RefNo.String}}</a>
+					</div>
+					{{end}}
+					<div>
+						{{$post.Detail}}
+					</div>
+					<div>
+						{{$post.PostTime}}
+					</div>
+				</td>
+			</tr>
+{{end}}
+		</tbody>
+	</table>
