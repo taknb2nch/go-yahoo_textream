@@ -21,9 +21,12 @@ type Page struct {
 
 func main() {
 	r := mux.NewRouter()
+	r.HandleFunc("/", IndexHandler)
 	r.HandleFunc("/posts/", PostsHandler)
-	r.HandleFunc("/posts/{id:[0-9]+}/", PostsHandler)
+	r.HandleFunc("/posts/user/{id:[0-9]+}/", PostsByUserHandler)
+	r.HandleFunc("/posts/brand/{id:[0-9]+}/", PostsByBrandHandler)
 	r.HandleFunc("/users/", UsersHandler)
+	r.HandleFunc("/brands/", BrandsHandler)
 
 	http.Handle("/css/", http.StripPrefix("/css/", http.FileServer(http.Dir("css"))))
 	http.Handle("/js/", http.StripPrefix("/js/", http.FileServer(http.Dir("js"))))
@@ -36,20 +39,77 @@ func main() {
 	}
 }
 
+func IndexHandler(w http.ResponseWriter, r *http.Request) {
+	err := writeOutput(w, "インディックス", "./template/index.tmpl", nil)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+}
+
 func PostsHandler(w http.ResponseWriter, r *http.Request) {
-	v := mux.Vars(r)
+	//v := mux.Vars(r)
 	container := db.NewTxContainer()
 
 	var posts []db.PostView
 	err := container.Do(func(tc *db.TxContainer) error {
 		var err error
 
-		if s, exists := v["id"]; exists {
-			id, _ := strconv.Atoi(s)
-			posts, err = NewMyLogic2(tc).getPostsByUserId(id)
-		} else {
-			posts, err = NewMyLogic2(tc).getPostsAll()
-		}
+		posts, err = NewMyLogic2(tc).getPostsAll()
+
+		return err
+	})
+
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+
+	err = writeOutput(w, "投稿一覧", "./template/posts.tmpl", posts)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+}
+
+func PostsByUserHandler(w http.ResponseWriter, r *http.Request) {
+	v := mux.Vars(r)
+	container := db.NewTxContainer()
+
+	id, _ := strconv.Atoi(v["id"])
+
+	var posts []db.PostView
+	err := container.Do(func(tc *db.TxContainer) error {
+		var err error
+
+		posts, err = NewMyLogic2(tc).getPostsByUserId(id)
+
+		return err
+	})
+
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+
+	err = writeOutput(w, "投稿一覧", "./template/posts.tmpl", posts)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+}
+
+func PostsByBrandHandler(w http.ResponseWriter, r *http.Request) {
+	v := mux.Vars(r)
+	container := db.NewTxContainer()
+
+	id, _ := strconv.Atoi(v["id"])
+
+	var posts []db.PostView
+	err := container.Do(func(tc *db.TxContainer) error {
+		var err error
+
+		posts, err = NewMyLogic2(tc).getPostsByBrandId(id)
 
 		return err
 	})
@@ -85,6 +145,29 @@ func UsersHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err = writeOutput(w, "ユーザ一覧", "./template/users.tmpl", users)
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+}
+
+func BrandsHandler(w http.ResponseWriter, r *http.Request) {
+	container := db.NewTxContainer()
+
+	var bs []db.Brand
+	err := container.Do(func(tc *db.TxContainer) error {
+		var err error
+		bs, err = NewMyLogic2(tc).getBrands()
+
+		return err
+	})
+
+	if err != nil {
+		writeError(w, err)
+		return
+	}
+
+	err = writeOutput(w, "銘柄一覧", "./template/brands.tmpl", bs)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -162,6 +245,19 @@ func (m *MyLogic2) getPostsByUserId(userId int) ([]db.PostView, error) {
 	return posts, nil
 }
 
+func (m *MyLogic2) getPostsByBrandId(brandId int) ([]db.PostView, error) {
+	var posts []db.PostView
+
+	_, err := m.tc.Tx.Select(&posts, "select A.id, A.user_id as UserId, A.brand_id as BrandId, A.comment_no as CommentNo, A.title as Title, A.url as Url, A.ref_no as RefNo, A.ref_url as RefUrl, A.detail as Detail, A.post_time as PostTime, B.brand_name as BrandName, B.url as BrandUrl from post A inner join brand B on A.brand_id = B.id where A.brand_id=? order by A.post_time desc ", brandId)
+	if err != nil {
+		m.tc.Err = err
+		log.Println(err)
+		return nil, err
+	}
+
+	return posts, nil
+}
+
 func (m *MyLogic2) getUsers() ([]db.User, error) {
 	var users []db.User
 
@@ -173,4 +269,17 @@ func (m *MyLogic2) getUsers() ([]db.User, error) {
 	}
 
 	return users, nil
+}
+
+func (m *MyLogic2) getBrands() ([]db.Brand, error) {
+	var bs []db.Brand
+
+	_, err := m.tc.Tx.Select(&bs, "select * from brand order by id")
+	if err != nil {
+		m.tc.Err = err
+		log.Println(err)
+		return nil, err
+	}
+
+	return bs, nil
 }
