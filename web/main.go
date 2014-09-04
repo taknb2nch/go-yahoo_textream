@@ -120,6 +120,9 @@ func PostsByBrandHandler(w http.ResponseWriter, r *http.Request) {
 		var err error
 
 		posts, err = NewMyLogic2(tc).getPostsByBrandId(id)
+		if err != nil {
+			return err
+		}
 
 		return err
 	})
@@ -277,7 +280,7 @@ func (m *MyLogic2) getPostsByBrandId(brandId int) ([]db.PostView, error) {
 func (m *MyLogic2) getUsers() ([]db.UserPostTimeView, error) {
 	var users []db.UserPostTimeView
 
-	_, err := m.tc.Tx.Select(&users, "select A.id as Id, A.yahoo_id as YahooId, A.display_name as DisplayName, A.url as Url, B.post_time as PostTimeString from user A inner join (select user_id, max(post_time) as post_time from post group by user_id) B on A.id = B.user_id order by b.post_time desc")
+	_, err := m.tc.Tx.Select(&users, "select A.id as Id, A.yahoo_id as YahooId, A.display_name as DisplayName, A.url as Url, B.post_time as PostTimeString, B.new_post_count as NewPostCount from user A inner join (select user_id, max(post_time) as post_time, count(B1.post_id) as new_post_count from post A1 left join post_notification B1 on A1.id = B1.post_id group by user_id) B on A.id = B.user_id order by b.post_time desc")
 	if err != nil {
 		m.tc.Err = err
 		log.Println(err)
@@ -299,7 +302,7 @@ func (m *MyLogic2) getUsers() ([]db.UserPostTimeView, error) {
 func (m *MyLogic2) getBrands() ([]db.BrandPostTimeView, error) {
 	var bs []db.BrandPostTimeView
 
-	_, err := m.tc.Tx.Select(&bs, "select A.id as Id, A.brand_name as BrandName, A.url as Url, B.post_time as PostTimeString from brand A inner join (select brand_id, max(post_time) as post_time from post group by brand_id) B on A.id = B.brand_id order by b.post_time desc")
+	_, err := m.tc.Tx.Select(&bs, "select A.id as Id, A.brand_name as BrandName, A.url as Url, B.post_time as PostTimeString, B.new_post_count as NewPostCount from brand A inner join (select A1.brand_id, max(A1.post_time) as post_time, count(B1.post_id) as new_post_count from post A1 left join post_notification B1 on A1.id = B1.post_id group by brand_id) B on A.id = B.brand_id order by b.post_time desc")
 	if err != nil {
 		m.tc.Err = err
 		log.Println(err)

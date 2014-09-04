@@ -99,6 +99,12 @@ func initDb(createTable bool) *gorp.DbMap {
 	t.ColMap("Detail").Rename("detail").SetNotNull(true).SetMaxSize(10000)
 	t.ColMap("PostTime").Rename("post_time")
 
+	t = dbmap.AddTableWithName(BrandNotification{}, "brand_notification").SetKeys(false, "BrandId")
+	t.ColMap("BrandId").Rename("brand_id")
+
+	t = dbmap.AddTableWithName(PostNotification{}, "post_notification").SetKeys(false, "PostId")
+	t.ColMap("PostId").Rename("post_id")
+
 	if createTable {
 		err = dbmap.CreateTablesIfNotExists()
 		if err != nil {

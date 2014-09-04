@@ -301,7 +301,13 @@ func (m *MyLogic) savePosts(userId int, posts []PostDto) error {
 				Url:       post.BrandUrl,
 			}
 
+			// TODO:
 			brand, err = m.addBrand(brand)
+			if err != nil {
+				return err
+			}
+
+			err = m.addBrandNotification(&db.BrandNotification{BrandId: brand.Id})
 			if err != nil {
 				return err
 			}
@@ -328,6 +334,13 @@ func (m *MyLogic) savePosts(userId int, posts []PostDto) error {
 			log.Println(err)
 			return err
 		}
+
+		err = m.addPostNotification(&db.PostNotification{PostId: et.Id})
+		if err != nil {
+			m.tc.Err = err
+			log.Println(err)
+			return err
+		}
 	}
 
 	return nil
@@ -342,6 +355,28 @@ func (m *MyLogic) addBrand(brand *db.Brand) (*db.Brand, error) {
 	}
 
 	return brand, nil
+}
+
+func (m *MyLogic) addBrandNotification(bn *db.BrandNotification) error {
+	err := m.tc.Tx.Insert(bn)
+	if err != nil {
+		m.tc.Err = err
+		log.Println(err)
+		return err
+	}
+
+	return nil
+}
+
+func (m *MyLogic) addPostNotification(pn *db.PostNotification) error {
+	err := m.tc.Tx.Insert(pn)
+	if err != nil {
+		m.tc.Err = err
+		log.Println(err)
+		return err
+	}
+
+	return nil
 }
 
 func (m *MyLogic) getBrandByName(brandName string) (*db.Brand, error) {
