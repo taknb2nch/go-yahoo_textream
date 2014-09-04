@@ -1,0 +1,25 @@
+<div>
+	<a href="/" class="btn btn-primary" title="メニューへ戻る">メニューへ戻る</a>
+</div>
+<div>
+	<table class="table table-striped">
+		<thead>
+			<tr>
+				<th>id</th>
+				<th>名前</th>
+				<th>最終投稿日時</th>
+				<th>サイトリンク</th>
+			</tr>
+		</thead>
+		<tbody>
+{{range $i, $brand := .}}
+			<tr>
+				<td>{{$brand.Id}}</td>
+				<td><a href="/posts/brand/{{$brand.Id}}/" target="_self">{{$brand.BrandName}}</a></td>
+				<td>{{formatTime $brand.PostTime}}</td>
+				<td><a href="{{$brand.Url}}" target="_blank">サイトリンク</a></td>
+			</tr>
+{{end}}
+		</tbody>
+	</table>
+</div>

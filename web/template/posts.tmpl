@@ -1,4 +1,8 @@
-	<table>
+<div>
+	<a href="/" class="btn btn-primary" title="メニューへ戻る">メニューへ戻る</a>
+</div>
+<div>
+	<table class="table table-striped">
 		<tbody>
 {{range $i, $post := .}}
 			<tr>
@@ -18,10 +22,11 @@
 						{{$post.Detail}}
 					</div>
 					<div>
-						{{$post.PostTime}}
+						{{formatTime $post.PostTime}}
 					</div>
 				</td>
 			</tr>
 {{end}}
 		</tbody>
 	</table>
+</div>
