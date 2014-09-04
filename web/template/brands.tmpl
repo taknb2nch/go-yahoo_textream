@@ -8,6 +8,7 @@
 				<th>id</th>
 				<th>名前</th>
 				<th>最終投稿日時</th>
+				<th>新規投稿</th>
 				<th>サイトリンク</th>
 			</tr>
 		</thead>
@@ -17,6 +18,7 @@
 				<td>{{$brand.Id}}</td>
 				<td><a href="/posts/brand/{{$brand.Id}}/" target="_self">{{$brand.BrandName}}</a></td>
 				<td>{{formatTime $brand.PostTime}}</td>
+				<td>{{if gt $brand.NewPostCount 0}}{{$brand.NewPostCount}}件{{end}}</td>
 				<td><a href="{{$brand.Url}}" target="_blank">サイトリンク</a></td>
 			</tr>
 {{end}}

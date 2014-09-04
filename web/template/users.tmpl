@@ -8,6 +8,7 @@
 				<th>id</th>
 				<th>名前</th>
 				<th>最終投稿日時</th>
+				<th>新規投稿</th>
 				<th>サイトリンク</th>
 			</tr>
 		</thead>
@@ -17,6 +18,7 @@
 				<td>{{$user.Id}}</td>
 				<td><a href="/posts/user/{{$user.Id}}/" target="_self">{{if $user.DisplayName.Valid}}{{$user.DisplayName.String}}{{else}}{{$user.YahooId}}{{end}}</a></td>
 				<td>{{formatTime $user.PostTime}}</td>
+				<td>{{if gt $user.NewPostCount 0}}{{$user.NewPostCount}}件{{end}}</td>
 				<td><a href="{{$user.Url}}" target="_blank">サイトリンク</a></td>
 			</tr>
 {{end}}

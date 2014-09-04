@@ -19,6 +19,7 @@ type UserPostTimeView struct {
 	Url            string
 	PostTimeString string
 	PostTime       time.Time
+	NewPostCount   int
 }
 
 type Brand struct {
@@ -33,6 +34,11 @@ type BrandPostTimeView struct {
 	Url            string
 	PostTimeString string
 	PostTime       time.Time
+	NewPostCount   int
+}
+
+type BrandNotification struct {
+	BrandId int
 }
 
 type Post struct {
@@ -61,4 +67,8 @@ type PostView struct {
 	PostTime  time.Time
 	BrandName string
 	BrandUrl  string
+}
+
+type PostNotification struct {
+	PostId int
 }
