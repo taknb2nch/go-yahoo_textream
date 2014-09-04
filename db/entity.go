@@ -12,10 +12,27 @@ type User struct {
 	Url         string
 }
 
+type UserPostTimeView struct {
+	Id             int
+	YahooId        string
+	DisplayName    sql.NullString
+	Url            string
+	PostTimeString string
+	PostTime       time.Time
+}
+
 type Brand struct {
 	Id        int
 	BrandName string
 	Url       string
+}
+
+type BrandPostTimeView struct {
+	Id             int
+	BrandName      string
+	Url            string
+	PostTimeString string
+	PostTime       time.Time
 }
 
 type Post struct {
