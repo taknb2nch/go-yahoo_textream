@@ -4,10 +4,11 @@ import (
 	"bytes"
 	"fmt"
 	"html/template"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"strconv"
-	// "time"
+	"time"
 
 	"github.com/gorilla/mux"
 
@@ -34,9 +35,18 @@ func main() {
 
 	http.Handle("/", r)
 
-	if err := http.ListenAndServe(":8080", nil); err != nil {
+	log.Println("statring server at localhost:8080 ...")
+
+	if err := http.ListenAndServe(":8080", LoggingServeMux(http.DefaultServeMux)); err != nil {
 		log.Fatalln("Could not start server.", err)
 	}
+}
+
+func LoggingServeMux(handler http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("%s %s %s", r.RemoteAddr, r.Method, r.URL)
+		handler.ServeHTTP(w, r)
+	})
 }
 
 func IndexHandler(w http.ResponseWriter, r *http.Request) {
@@ -131,7 +141,7 @@ var baseTmpl = template.Must(template.ParseFiles("./template/base.tmpl"))
 func UsersHandler(w http.ResponseWriter, r *http.Request) {
 	container := db.NewTxContainer()
 
-	var users []db.User
+	var users []db.UserPostTimeView
 	err := container.Do(func(tc *db.TxContainer) error {
 		var err error
 		users, err = NewMyLogic2(tc).getUsers()
@@ -154,7 +164,7 @@ func UsersHandler(w http.ResponseWriter, r *http.Request) {
 func BrandsHandler(w http.ResponseWriter, r *http.Request) {
 	container := db.NewTxContainer()
 
-	var bs []db.Brand
+	var bs []db.BrandPostTimeView
 	err := container.Do(func(tc *db.TxContainer) error {
 		var err error
 		bs, err = NewMyLogic2(tc).getBrands()
@@ -176,17 +186,23 @@ func BrandsHandler(w http.ResponseWriter, r *http.Request) {
 
 func writeOutput(w http.ResponseWriter, title string, templateName string, data interface{}) error {
 
-	// funcMap := template.FuncMap{
-	// 	"formatTime": func(t time.Time) string {
-	// 		return t.In(time.Local).Format("2006-01-02 15/04/05")
-	// 	},
-	// }
+	funcMap := template.FuncMap{
+		"formatTime": func(t time.Time) string {
+			return t.In(time.Local).Format("2006-01-02 15:04:05")
+		},
+	}
 
-	t := template.Must(template.ParseFiles(templateName))
+	c, err := ioutil.ReadFile(templateName)
+	if err != nil {
+		return err
+	}
+
+	//t := template.Must(template.ParseFiles(templateName))
+	t := template.Must(template.New("template").Funcs(funcMap).Parse(string(c)))
 
 	var b bytes.Buffer
 
-	err := t.Execute(&b, data)
+	err = t.Execute(&b, data)
 	if err != nil {
 		return err
 	}
@@ -258,27 +274,45 @@ func (m *MyLogic2) getPostsByBrandId(brandId int) ([]db.PostView, error) {
 	return posts, nil
 }
 
-func (m *MyLogic2) getUsers() ([]db.User, error) {
-	var users []db.User
+func (m *MyLogic2) getUsers() ([]db.UserPostTimeView, error) {
+	var users []db.UserPostTimeView
 
-	_, err := m.tc.Tx.Select(&users, "select * from user order by id")
+	_, err := m.tc.Tx.Select(&users, "select A.id as Id, A.yahoo_id as YahooId, A.display_name as DisplayName, A.url as Url, B.post_time as PostTimeString from user A inner join (select user_id, max(post_time) as post_time from post group by user_id) B on A.id = B.user_id order by b.post_time desc")
 	if err != nil {
 		m.tc.Err = err
 		log.Println(err)
 		return nil, err
 	}
 
+	for i, _ := range users {
+		t, err := time.ParseInLocation("2006-01-02 15:04:05", users[i].PostTimeString, time.UTC)
+		if err != nil {
+			return nil, err
+		} else {
+			users[i].PostTime = t
+		}
+	}
+
 	return users, nil
 }
 
-func (m *MyLogic2) getBrands() ([]db.Brand, error) {
-	var bs []db.Brand
+func (m *MyLogic2) getBrands() ([]db.BrandPostTimeView, error) {
+	var bs []db.BrandPostTimeView
 
-	_, err := m.tc.Tx.Select(&bs, "select * from brand order by id")
+	_, err := m.tc.Tx.Select(&bs, "select A.id as Id, A.brand_name as BrandName, A.url as Url, B.post_time as PostTimeString from brand A inner join (select brand_id, max(post_time) as post_time from post group by brand_id) B on A.id = B.brand_id order by b.post_time desc")
 	if err != nil {
 		m.tc.Err = err
 		log.Println(err)
 		return nil, err
+	}
+
+	for i, _ := range bs {
+		t, err := time.ParseInLocation("2006-01-02 15:04:05", bs[i].PostTimeString, time.UTC)
+		if err != nil {
+			return nil, err
+		} else {
+			bs[i].PostTime = t
+		}
 	}
 
 	return bs, nil
