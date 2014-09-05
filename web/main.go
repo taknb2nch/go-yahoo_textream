@@ -82,17 +82,45 @@ func PostsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// func PostsByUserHandler(w http.ResponseWriter, r *http.Request) {
+// 	v := mux.Vars(r)
+// 	container := db.NewTxContainer()
+
+// 	id, _ := strconv.Atoi(v["id"])
+
+// 	var posts []db.PostView
+// 	err := container.Do(func(tc *db.TxContainer) error {
+// 		var err error
+
+// 		posts, err = NewMyLogic2(tc).getPostsByUserId(id)
+
+// 		return err
+// 	})
+
+// 	if err != nil {
+// 		writeError(w, err)
+// 		return
+// 	}
+
+// 	err = writeOutput(w, "投稿一覧", "./template/posts.tmpl", posts)
+// 	if err != nil {
+// 		writeError(w, err)
+// 		return
+// 	}
+// }
 func PostsByUserHandler(w http.ResponseWriter, r *http.Request) {
 	v := mux.Vars(r)
 	container := db.NewTxContainer()
 
 	id, _ := strconv.Atoi(v["id"])
 
-	var posts []db.PostView
+	var posts []PostDto
 	err := container.Do(func(tc *db.TxContainer) error {
 		var err error
 
-		posts, err = NewMyLogic2(tc).getPostsByUserId(id)
+		ps, err := NewMyLogic2(tc).getPostsByUserId(id)
+
+		posts = PostViewToPostDto(ps)
 
 		return err
 	})
@@ -109,20 +137,51 @@ func PostsByUserHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// func PostsByBrandHandler(w http.ResponseWriter, r *http.Request) {
+// 	v := mux.Vars(r)
+// 	container := db.NewTxContainer()
+
+// 	id, _ := strconv.Atoi(v["id"])
+
+// 	var posts []db.PostView
+// 	err := container.Do(func(tc *db.TxContainer) error {
+// 		var err error
+
+// 		posts, err = NewMyLogic2(tc).getPostsByBrandId(id)
+// 		if err != nil {
+// 			return err
+// 		}
+
+// 		return err
+// 	})
+
+// 	if err != nil {
+// 		writeError(w, err)
+// 		return
+// 	}
+
+// 	err = writeOutput(w, "投稿一覧", "./template/posts.tmpl", posts)
+// 	if err != nil {
+// 		writeError(w, err)
+// 		return
+// 	}
+// }
 func PostsByBrandHandler(w http.ResponseWriter, r *http.Request) {
 	v := mux.Vars(r)
 	container := db.NewTxContainer()
 
 	id, _ := strconv.Atoi(v["id"])
 
-	var posts []db.PostView
+	var posts []PostDto
 	err := container.Do(func(tc *db.TxContainer) error {
 		var err error
 
-		posts, err = NewMyLogic2(tc).getPostsByBrandId(id)
+		ps, err := NewMyLogic2(tc).getPostsByBrandId(id)
 		if err != nil {
 			return err
 		}
+
+		posts = PostViewToPostDto(ps)
 
 		return err
 	})
@@ -137,6 +196,41 @@ func PostsByBrandHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
+}
+
+func PostViewToPostDto(ps []db.PostView) []PostDto {
+	posts := make([]PostDto, len(ps))
+	for i, p := range ps {
+		posts[i].Id = p.Id
+		posts[i].UserId = p.UserId
+		posts[i].BrandId = p.BrandId
+		posts[i].CommentNo = p.CommentNo
+		posts[i].Title = p.Title
+		posts[i].Url = p.Url
+		posts[i].RefNo = p.RefNo.String
+		posts[i].RefUrl = p.RefUrl.String
+		posts[i].Detail = p.Detail
+		posts[i].PostTime = p.PostTime
+		posts[i].BrandName = p.BrandName
+		posts[i].BrandUrl = p.BrandUrl
+		posts[i].IsNewPost = p.PostNotificationPostId.Valid
+	}
+
+	return posts
+}
+
+func BrandPostTimeViewToBrandDto(bs []db.BrandPostTimeView) []BrandDto {
+	brands := make([]BrandDto, len(bs))
+	for i, b := range bs {
+		brands[i].Id = b.Id
+		brands[i].BrandName = b.BrandName
+		brands[i].Url = b.Url
+		brands[i].PostTime = b.PostTime
+		brands[i].NewPostCount = b.NewPostCount
+		brands[i].IsNewBrand = b.BrandNotificationBrandId.Valid
+	}
+
+	return brands
 }
 
 var baseTmpl = template.Must(template.ParseFiles("./template/base.tmpl"))
@@ -164,13 +258,38 @@ func UsersHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// func BrandsHandler(w http.ResponseWriter, r *http.Request) {
+// 	container := db.NewTxContainer()
+
+// 	var bs []db.BrandPostTimeView
+// 	err := container.Do(func(tc *db.TxContainer) error {
+// 		var err error
+// 		bs, err = NewMyLogic2(tc).getBrands()
+
+// 		return err
+// 	})
+
+// 	if err != nil {
+// 		writeError(w, err)
+// 		return
+// 	}
+
+// 	err = writeOutput(w, "銘柄一覧", "./template/brands.tmpl", bs)
+// 	if err != nil {
+// 		writeError(w, err)
+// 		return
+// 	}
+// }
 func BrandsHandler(w http.ResponseWriter, r *http.Request) {
 	container := db.NewTxContainer()
 
-	var bs []db.BrandPostTimeView
+	var brands []BrandDto
 	err := container.Do(func(tc *db.TxContainer) error {
 		var err error
-		bs, err = NewMyLogic2(tc).getBrands()
+
+		bs, err := NewMyLogic2(tc).getBrands()
+
+		brands = BrandPostTimeViewToBrandDto(bs)
 
 		return err
 	})
@@ -180,7 +299,7 @@ func BrandsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = writeOutput(w, "銘柄一覧", "./template/brands.tmpl", bs)
+	err = writeOutput(w, "銘柄一覧", "./template/brands.tmpl", brands)
 	if err != nil {
 		writeError(w, err)
 		return
@@ -254,7 +373,7 @@ func (m *MyLogic2) getPostsAll() ([]db.PostView, error) {
 func (m *MyLogic2) getPostsByUserId(userId int) ([]db.PostView, error) {
 	var posts []db.PostView
 
-	_, err := m.tc.Tx.Select(&posts, "select A.id, A.user_id as UserId, A.brand_id as BrandId, A.comment_no as CommentNo, A.title as Title, A.url as Url, A.ref_no as RefNo, A.ref_url as RefUrl, A.detail as Detail, A.post_time as PostTime, B.brand_name as BrandName, B.url as BrandUrl from post A inner join brand B on A.brand_id = B.id where A.user_id=? order by A.post_time desc ", userId)
+	_, err := m.tc.Tx.Select(&posts, "select A.id, A.user_id as UserId, A.brand_id as BrandId, A.comment_no as CommentNo, A.title as Title, A.url as Url, A.ref_no as RefNo, A.ref_url as RefUrl, A.detail as Detail, A.post_time as PostTime, B.brand_name as BrandName, B.url as BrandUrl, C.post_id as PostNotificationPostId from post A inner join brand B on A.brand_id = B.id left join post_notification C on A.id = C.post_id where A.user_id=? order by A.post_time desc", userId)
 	if err != nil {
 		m.tc.Err = err
 		log.Println(err)
@@ -267,7 +386,7 @@ func (m *MyLogic2) getPostsByUserId(userId int) ([]db.PostView, error) {
 func (m *MyLogic2) getPostsByBrandId(brandId int) ([]db.PostView, error) {
 	var posts []db.PostView
 
-	_, err := m.tc.Tx.Select(&posts, "select A.id, A.user_id as UserId, A.brand_id as BrandId, A.comment_no as CommentNo, A.title as Title, A.url as Url, A.ref_no as RefNo, A.ref_url as RefUrl, A.detail as Detail, A.post_time as PostTime, B.brand_name as BrandName, B.url as BrandUrl from post A inner join brand B on A.brand_id = B.id where A.brand_id=? order by A.post_time desc ", brandId)
+	_, err := m.tc.Tx.Select(&posts, "select A.id, A.user_id as UserId, A.brand_id as BrandId, A.comment_no as CommentNo, A.title as Title, A.url as Url, A.ref_no as RefNo, A.ref_url as RefUrl, A.detail as Detail, A.post_time as PostTime, B.brand_name as BrandName, B.url as BrandUrl, C.post_id as PostNotificationPostId from post A inner join brand B on A.brand_id = B.id left join post_notification C on A.id = C.post_id where A.brand_id=? order by A.post_time desc", brandId)
 	if err != nil {
 		m.tc.Err = err
 		log.Println(err)
@@ -277,10 +396,15 @@ func (m *MyLogic2) getPostsByBrandId(brandId int) ([]db.PostView, error) {
 	return posts, nil
 }
 
+// func (m *MyLogic2) deletePostNotificationByBrandId(brandId int) error {
+// 	// delete from post_notification where post_id in (select id from post A1 inner join post_notification B1 on A1.id = B1.post_id where A1.brand_id=?)
+// 	m.tc.Tx.Exec()
+// }
+
 func (m *MyLogic2) getUsers() ([]db.UserPostTimeView, error) {
 	var users []db.UserPostTimeView
 
-	_, err := m.tc.Tx.Select(&users, "select A.id as Id, A.yahoo_id as YahooId, A.display_name as DisplayName, A.url as Url, B.post_time as PostTimeString, B.new_post_count as NewPostCount from user A inner join (select user_id, max(post_time) as post_time, count(B1.post_id) as new_post_count from post A1 left join post_notification B1 on A1.id = B1.post_id group by user_id) B on A.id = B.user_id order by b.post_time desc")
+	_, err := m.tc.Tx.Select(&users, "select A.id as Id, A.yahoo_id as YahooId, A.display_name as DisplayName, A.url as Url, B.post_time as PostTimeString, B.new_post_count as NewPostCount from user A inner join (select user_id, max(post_time) as post_time, count(B1.post_id) as new_post_count from post A1 left join post_notification B1 on A1.id = B1.post_id group by user_id) B on A.id = B.user_id order by B.post_time desc")
 	if err != nil {
 		m.tc.Err = err
 		log.Println(err)
@@ -302,7 +426,7 @@ func (m *MyLogic2) getUsers() ([]db.UserPostTimeView, error) {
 func (m *MyLogic2) getBrands() ([]db.BrandPostTimeView, error) {
 	var bs []db.BrandPostTimeView
 
-	_, err := m.tc.Tx.Select(&bs, "select A.id as Id, A.brand_name as BrandName, A.url as Url, B.post_time as PostTimeString, B.new_post_count as NewPostCount from brand A inner join (select A1.brand_id, max(A1.post_time) as post_time, count(B1.post_id) as new_post_count from post A1 left join post_notification B1 on A1.id = B1.post_id group by brand_id) B on A.id = B.brand_id order by b.post_time desc")
+	_, err := m.tc.Tx.Select(&bs, "select A.id as Id, A.brand_name as BrandName, A.url as Url, B.post_time as PostTimeString, B.new_post_count as NewPostCount, C.brand_id as BrandNotificationBrandId from brand A inner join (select A1.brand_id, max(A1.post_time) as post_time, count(B1.post_id) as new_post_count from post A1 left join post_notification B1 on A1.id = B1.post_id group by brand_id) B on A.id = B.brand_id left join brand_notification C on A.id = C.brand_id order by B.post_time desc")
 	if err != nil {
 		m.tc.Err = err
 		log.Println(err)
@@ -319,4 +443,30 @@ func (m *MyLogic2) getBrands() ([]db.BrandPostTimeView, error) {
 	}
 
 	return bs, nil
+}
+
+type PostDto struct {
+	Id        int
+	UserId    int
+	BrandId   int
+	CommentNo string
+	Title     string
+	Url       string
+	RefNo     string
+	RefUrl    string
+	Detail    string
+	PostTime  time.Time
+	BrandName string
+	BrandUrl  string
+	IsNewPost bool
+}
+
+type BrandDto struct {
+	Id             int
+	BrandName      string
+	Url            string
+	PostTimeString string
+	PostTime       time.Time
+	NewPostCount   int
+	IsNewBrand     bool
 }
