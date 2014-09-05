@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -82,32 +83,6 @@ func PostsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// func PostsByUserHandler(w http.ResponseWriter, r *http.Request) {
-// 	v := mux.Vars(r)
-// 	container := db.NewTxContainer()
-
-// 	id, _ := strconv.Atoi(v["id"])
-
-// 	var posts []db.PostView
-// 	err := container.Do(func(tc *db.TxContainer) error {
-// 		var err error
-
-// 		posts, err = NewMyLogic2(tc).getPostsByUserId(id)
-
-// 		return err
-// 	})
-
-// 	if err != nil {
-// 		writeError(w, err)
-// 		return
-// 	}
-
-// 	err = writeOutput(w, "投稿一覧", "./template/posts.tmpl", posts)
-// 	if err != nil {
-// 		writeError(w, err)
-// 		return
-// 	}
-// }
 func PostsByUserHandler(w http.ResponseWriter, r *http.Request) {
 	v := mux.Vars(r)
 	container := db.NewTxContainer()
@@ -118,9 +93,17 @@ func PostsByUserHandler(w http.ResponseWriter, r *http.Request) {
 	err := container.Do(func(tc *db.TxContainer) error {
 		var err error
 
-		ps, err := NewMyLogic2(tc).getPostsByUserId(id)
+		l := NewMyLogic2(tc)
+		ps, err := l.getPostsByUserId(id)
+		if err != nil {
+			return err
+		}
 
-		posts = PostViewToPostDto(ps)
+		posts = convertPostViewToPostDto(ps)
+
+		ids := getNewPostIds(posts)
+
+		err = l.deletePostNotificationByPostId(ids)
 
 		return err
 	})
@@ -137,35 +120,6 @@ func PostsByUserHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// func PostsByBrandHandler(w http.ResponseWriter, r *http.Request) {
-// 	v := mux.Vars(r)
-// 	container := db.NewTxContainer()
-
-// 	id, _ := strconv.Atoi(v["id"])
-
-// 	var posts []db.PostView
-// 	err := container.Do(func(tc *db.TxContainer) error {
-// 		var err error
-
-// 		posts, err = NewMyLogic2(tc).getPostsByBrandId(id)
-// 		if err != nil {
-// 			return err
-// 		}
-
-// 		return err
-// 	})
-
-// 	if err != nil {
-// 		writeError(w, err)
-// 		return
-// 	}
-
-// 	err = writeOutput(w, "投稿一覧", "./template/posts.tmpl", posts)
-// 	if err != nil {
-// 		writeError(w, err)
-// 		return
-// 	}
-// }
 func PostsByBrandHandler(w http.ResponseWriter, r *http.Request) {
 	v := mux.Vars(r)
 	container := db.NewTxContainer()
@@ -176,12 +130,18 @@ func PostsByBrandHandler(w http.ResponseWriter, r *http.Request) {
 	err := container.Do(func(tc *db.TxContainer) error {
 		var err error
 
-		ps, err := NewMyLogic2(tc).getPostsByBrandId(id)
+		l := NewMyLogic2(tc)
+
+		ps, err := l.getPostsByBrandId(id)
 		if err != nil {
 			return err
 		}
 
-		posts = PostViewToPostDto(ps)
+		posts = convertPostViewToPostDto(ps)
+
+		ids := getNewPostIds(posts)
+
+		err = l.deletePostNotificationByPostId(ids)
 
 		return err
 	})
@@ -198,7 +158,7 @@ func PostsByBrandHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func PostViewToPostDto(ps []db.PostView) []PostDto {
+func convertPostViewToPostDto(ps []db.PostView) []PostDto {
 	posts := make([]PostDto, len(ps))
 	for i, p := range ps {
 		posts[i].Id = p.Id
@@ -219,7 +179,20 @@ func PostViewToPostDto(ps []db.PostView) []PostDto {
 	return posts
 }
 
-func BrandPostTimeViewToBrandDto(bs []db.BrandPostTimeView) []BrandDto {
+func getNewPostIds(ps []PostDto) []int {
+	ids := make([]int, 0, len(ps))
+	for _, p := range ps {
+		if !p.IsNewPost {
+			continue
+		}
+
+		ids = append(ids, p.Id)
+	}
+
+	return ids
+}
+
+func convertBrandPostTimeViewToBrandDto(bs []db.BrandPostTimeView) []BrandDto {
 	brands := make([]BrandDto, len(bs))
 	for i, b := range bs {
 		brands[i].Id = b.Id
@@ -258,28 +231,6 @@ func UsersHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// func BrandsHandler(w http.ResponseWriter, r *http.Request) {
-// 	container := db.NewTxContainer()
-
-// 	var bs []db.BrandPostTimeView
-// 	err := container.Do(func(tc *db.TxContainer) error {
-// 		var err error
-// 		bs, err = NewMyLogic2(tc).getBrands()
-
-// 		return err
-// 	})
-
-// 	if err != nil {
-// 		writeError(w, err)
-// 		return
-// 	}
-
-// 	err = writeOutput(w, "銘柄一覧", "./template/brands.tmpl", bs)
-// 	if err != nil {
-// 		writeError(w, err)
-// 		return
-// 	}
-// }
 func BrandsHandler(w http.ResponseWriter, r *http.Request) {
 	container := db.NewTxContainer()
 
@@ -287,9 +238,12 @@ func BrandsHandler(w http.ResponseWriter, r *http.Request) {
 	err := container.Do(func(tc *db.TxContainer) error {
 		var err error
 
-		bs, err := NewMyLogic2(tc).getBrands()
+		l := NewMyLogic2(tc)
+		bs, err := l.getBrands()
 
-		brands = BrandPostTimeViewToBrandDto(bs)
+		brands = convertBrandPostTimeViewToBrandDto(bs)
+
+		l.deleteBrandNotification()
 
 		return err
 	})
@@ -396,10 +350,40 @@ func (m *MyLogic2) getPostsByBrandId(brandId int) ([]db.PostView, error) {
 	return posts, nil
 }
 
-// func (m *MyLogic2) deletePostNotificationByBrandId(brandId int) error {
-// 	// delete from post_notification where post_id in (select id from post A1 inner join post_notification B1 on A1.id = B1.post_id where A1.brand_id=?)
-// 	m.tc.Tx.Exec()
-// }
+func (m *MyLogic2) deletePostNotificationByPostId(ids []int) error {
+	// sqlでやるなら
+	// // delete from post_notification where post_id in (select id from post A1 inner join post_notification B1 on A1.id = B1.post_id where A1.brand_id=?)
+	pa := make([]string, 0, len(ids))
+	args := make([]interface{}, 0, len(ids))
+	//for i := 0; i < len(ids); i++ {
+	for _, id := range ids {
+		pa = append(pa, "?")
+		args = append(args, id)
+	}
+
+	sql := "delete from post_notification where post_id in (" + strings.Join(pa, ",") + ")"
+
+	_, err := m.tc.Tx.Exec(sql, args...)
+	if err != nil {
+		m.tc.Err = err
+		log.Println(err)
+		return err
+	}
+
+	return nil
+}
+
+func (m *MyLogic2) deleteBrandNotification() error {
+	// 一定期間表示するには日時を持たせておく
+	_, err := m.tc.Tx.Exec("delete from brand_notification")
+	if err != nil {
+		m.tc.Err = err
+		log.Println(err)
+		return err
+	}
+
+	return nil
+}
 
 func (m *MyLogic2) getUsers() ([]db.UserPostTimeView, error) {
 	var users []db.UserPostTimeView
