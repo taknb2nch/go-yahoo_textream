@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"runtime"
 	"strings"
 	"time"
 
@@ -39,9 +40,11 @@ type PostDto struct {
 const USER_JSON = "./users.json"
 
 func main() {
+	runtime.GOMAXPROCS(3)
+
 	us := readUsersFromJson()
 
-	var users []db.User
+	var users []db.UserPostTimeView
 
 	container := db.NewTxContainer()
 	container.Do(func(tc *db.TxContainer) error {
@@ -59,47 +62,47 @@ func main() {
 		return nil
 	})
 
+	ch := make(chan PageResult, 3)
+
 	for _, user := range users {
-		var lastPostTime time.Time
-		var ok bool
 
-		container.Do(func(tc *db.TxContainer) error {
-			var err error
-
-			l := NewMyLogic(tc)
-
-			lastPostTime, ok, err = l.getLastPostTime(user.Id)
-			if err != nil {
-				return err
+		go func(c chan<- PageResult, u db.UserPostTimeView) {
+			var lastPostTime time.Time
+			if u.PostTime.IsZero() {
+				lastPostTime = time.Now().AddDate(-1, 0, 0)
+			} else {
+				lastPostTime = u.PostTime
 			}
 
-			return nil
-		})
+			posts := getPage(u.Url, lastPostTime)
 
-		if !ok {
-			lastPostTime = time.Now().AddDate(-1, 0, 0)
-		}
+			ch <- PageResult{
+				User:  u,
+				Posts: posts,
+			}
+		}(ch, user)
+	}
 
+	for i := 0; i < len(users); i++ {
+		result := <-ch
 		var displayName string
-		if user.DisplayName.Valid {
-			displayName = user.DisplayName.String
+		if result.User.DisplayName.Valid {
+			displayName = result.User.DisplayName.String
 		} else {
-			displayName = user.YahooId
+			displayName = result.User.YahooId
 		}
 
-		fmt.Printf("%s(%s): %v\n", displayName, user.YahooId, lastPostTime)
+		fmt.Printf("%s(%s): %v\n", displayName, result.User.YahooId, result.User.PostTime)
 
-		posts := getPage(user.Url, lastPostTime)
+		if len(result.Posts) > 0 {
+			fmt.Printf("新規投稿 :　%d件\n-----\n", len(result.Posts))
 
-		if len(posts) > 0 {
-			fmt.Printf("新規投稿 :　%d件\n-----\n", len(posts))
-
-			for _, post := range posts {
+			for _, post := range result.Posts {
 				fmt.Printf("%s\n%s\n%s\n%v\n-----\n", post.BrandName, post.Title, post.Url, post.PostTime)
 			}
 
 			container.Do(func(tc *db.TxContainer) error {
-				NewMyLogic(tc).savePosts(user.Id, posts)
+				NewMyLogic(tc).savePosts(result.User.Id, result.Posts)
 
 				return nil
 			})
@@ -109,6 +112,11 @@ func main() {
 
 		fmt.Println()
 	}
+}
+
+type PageResult struct {
+	User  db.UserPostTimeView
+	Posts []PostDto
 }
 
 func readUsersFromJson() []UserJson {
@@ -198,6 +206,8 @@ func getPage(url string, lastPostTime time.Time) []PostDto {
 		href4, _ := next.Attr("href")
 		url = href4
 	}
+
+	//fmt.Printf("complete: %s\n", url)
 
 	return list
 }
@@ -427,13 +437,37 @@ func (m *MyLogic) addUsersIfNotExist(users []UserJson) error {
 	return nil
 }
 
-func (m *MyLogic) getUsers() ([]db.User, error) {
-	var users []db.User
-	_, err := m.tc.Tx.Select(&users, "select * from user order by id")
+// func (m *MyLogic) getUsers() ([]db.User, error) {
+// 	var users []db.User
+// 	_, err := m.tc.Tx.Select(&users, "select * from user order by id")
+// 	if err != nil {
+// 		m.tc.Err = err
+// 		log.Println(err)
+// 		return nil, err
+// 	}
+
+// 	return users, nil
+// }
+func (m *MyLogic) getUsers() ([]db.UserPostTimeView, error) {
+	var users []db.UserPostTimeView
+	_, err := m.tc.Tx.Select(
+		&users,
+		"select A.id as Id, A.yahoo_id as YahooId, A.display_name as DisplayName, A.url as Url, B.post_time as PostTimeString from user A inner join (select user_id, max(post_time) as post_time from post A1 group by user_id) B on A.id = B.user_id order by A.id asc")
 	if err != nil {
 		m.tc.Err = err
 		log.Println(err)
 		return nil, err
+	}
+
+	for i, _ := range users {
+		if users[i].PostTimeString != "" {
+			t, err := time.ParseInLocation("2006-01-02 15:04:05", users[i].PostTimeString, time.UTC)
+			if err != nil {
+				return nil, err
+			} else {
+				users[i].PostTime = t
+			}
+		}
 	}
 
 	return users, nil
