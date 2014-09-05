@@ -16,9 +16,12 @@
 {{range $i, $brand := .}}
 			<tr>
 				<td>{{$brand.Id}}</td>
-				<td><a href="/posts/brand/{{$brand.Id}}/" target="_self">{{$brand.BrandName}}</a></td>
+				<td>
+					<a href="/posts/brand/{{$brand.Id}}/" target="_self">{{$brand.BrandName}}</a>
+					{{if $brand.IsNewBrand}}<span class="label label-default">New</span>{{end}}
+				</td>
 				<td>{{formatTime $brand.PostTime}}</td>
-				<td>{{if gt $brand.NewPostCount 0}}{{$brand.NewPostCount}}件{{end}}</td>
+				<td>{{if gt $brand.NewPostCount 0}}<span class="badge">{{$brand.NewPostCount}}</span>{{end}}</td>
 				<td><a href="{{$brand.Url}}" target="_blank">サイトリンク</a></td>
 			</tr>
 {{end}}

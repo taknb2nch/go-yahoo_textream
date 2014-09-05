@@ -9,13 +9,14 @@
 				<td>
 					<div>
 						<a href="{{$post.BrandUrl}}" target="_blank">{{$post.BrandName}}</a>
+						{{if $post.IsNewPost}}<span class="label label-default">New</span>{{end}}
 					</div>
 					<div>
 						{{$post.CommentNo}} ： <a href="{{$post.Url}}" target="_blank">{{$post.Title}}</a>
 					</div>
-					{{if $post.RefNo.Valid}}
+					{{if ne $post.RefNo ""}}
 					<div>
-						&gt;<a href="{{$post.RefUrl.String}}" target="_blank">{{$post.RefNo.String}}</a>
+						&gt;<a href="{{$post.RefUrl}}" target="_blank">{{$post.RefNo}}</a>
 					</div>
 					{{end}}
 					<div>

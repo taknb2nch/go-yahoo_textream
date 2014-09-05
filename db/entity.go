@@ -29,12 +29,13 @@ type Brand struct {
 }
 
 type BrandPostTimeView struct {
-	Id             int
-	BrandName      string
-	Url            string
-	PostTimeString string
-	PostTime       time.Time
-	NewPostCount   int
+	Id                       int
+	BrandName                string
+	Url                      string
+	PostTimeString           string
+	PostTime                 time.Time
+	NewPostCount             int
+	BrandNotificationBrandId sql.NullInt64
 }
 
 type BrandNotification struct {
@@ -55,18 +56,19 @@ type Post struct {
 }
 
 type PostView struct {
-	Id        int
-	UserId    int
-	BrandId   int
-	CommentNo string
-	Title     string
-	Url       string
-	RefNo     sql.NullString
-	RefUrl    sql.NullString
-	Detail    string
-	PostTime  time.Time
-	BrandName string
-	BrandUrl  string
+	Id                     int
+	UserId                 int
+	BrandId                int
+	CommentNo              string
+	Title                  string
+	Url                    string
+	RefNo                  sql.NullString
+	RefUrl                 sql.NullString
+	Detail                 string
+	PostTime               time.Time
+	BrandName              string
+	BrandUrl               string
+	PostNotificationPostId sql.NullInt64
 }
 
 type PostNotification struct {
