@@ -1,21 +1,22 @@
 <div>
-	<a href="/" class="btn btn-primary" title="メニューへ戻る">メニューへ戻る</a>
+	<a href="{{.ReturnPath}}" class="btn btn-primary" title="戻る">戻る</a>
 </div>
 <div>
 	<table class="table table-striped">
 		<tbody>
-{{range $i, $post := .}}
+{{range $i, $post := .Dto}}
 			<tr>
 				<td>
 					<div>
 						<a href="{{$post.BrandUrl}}" target="_blank">{{$post.BrandName}}</a>
+						{{if $post.IsNewPost}}<span class="label label-default">New</span>{{end}}
 					</div>
 					<div>
 						{{$post.CommentNo}} ： <a href="{{$post.Url}}" target="_blank">{{$post.Title}}</a>
 					</div>
-					{{if $post.RefNo.Valid}}
+					{{if ne $post.RefNo ""}}
 					<div>
-						&gt;<a href="{{$post.RefUrl.String}}" target="_blank">{{$post.RefNo.String}}</a>
+						&gt;<a href="{{$post.RefUrl}}" target="_blank">{{$post.RefNo}}</a>
 					</div>
 					{{end}}
 					<div>
