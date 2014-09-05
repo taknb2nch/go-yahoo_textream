@@ -76,7 +76,11 @@ func PostsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = writeOutput(w, "投稿一覧", "./template/posts.tmpl", posts)
+	err = writeOutput(w, "投稿一覧", "./template/posts.tmpl",
+		&ViewPage{
+			Dto:        posts,
+			ReturnPath: "/",
+		})
 	if err != nil {
 		writeError(w, err)
 		return
@@ -113,7 +117,11 @@ func PostsByUserHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = writeOutput(w, "投稿一覧", "./template/posts.tmpl", posts)
+	err = writeOutput(w, "投稿一覧", "./template/posts.tmpl",
+		&ViewPage{
+			Dto:        posts,
+			ReturnPath: "/users/",
+		})
 	if err != nil {
 		writeError(w, err)
 		return
@@ -151,7 +159,11 @@ func PostsByBrandHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = writeOutput(w, "投稿一覧", "./template/posts.tmpl", posts)
+	err = writeOutput(w, "投稿一覧", "./template/posts.tmpl",
+		&ViewPage{
+			Dto:        posts,
+			ReturnPath: "/brands/",
+		})
 	if err != nil {
 		writeError(w, err)
 		return
@@ -224,7 +236,7 @@ func UsersHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = writeOutput(w, "ユーザ一覧", "./template/users.tmpl", users)
+	err = writeOutput(w, "ユーザ一覧", "./template/users.tmpl", &ViewPage{Dto: users})
 	if err != nil {
 		writeError(w, err)
 		return
@@ -253,14 +265,14 @@ func BrandsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = writeOutput(w, "銘柄一覧", "./template/brands.tmpl", brands)
+	err = writeOutput(w, "銘柄一覧", "./template/brands.tmpl", &ViewPage{Dto: brands})
 	if err != nil {
 		writeError(w, err)
 		return
 	}
 }
 
-func writeOutput(w http.ResponseWriter, title string, templateName string, data interface{}) error {
+func writeOutput(w http.ResponseWriter, title string, templateName string, data *ViewPage) error {
 
 	funcMap := template.FuncMap{
 		"formatTime": func(t time.Time) string {
@@ -453,4 +465,9 @@ type BrandDto struct {
 	PostTime       time.Time
 	NewPostCount   int
 	IsNewBrand     bool
+}
+
+type ViewPage struct {
+	ReturnPath string
+	Dto        interface{}
 }
