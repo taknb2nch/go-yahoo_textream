@@ -1,10 +1,10 @@
 <div>
-	<a href="/" class="btn btn-primary" title="メニューへ戻る">メニューへ戻る</a>
+	<a href="{{.ReturnPath}}" class="btn btn-primary" title="戻る">戻る</a>
 </div>
 <div>
 	<table class="table table-striped">
 		<tbody>
-{{range $i, $post := .}}
+{{range $i, $post := .Dto}}
 			<tr>
 				<td>
 					<div>
