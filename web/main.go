@@ -16,6 +16,11 @@ import (
 	"../db"
 )
 
+const (
+	PER_PAGE   = 30
+	PAGE_WIDTH = 5
+)
+
 type Page struct {
 	Title     string
 	Container template.HTML
@@ -26,7 +31,9 @@ func main() {
 	r.HandleFunc("/", IndexHandler)
 	r.HandleFunc("/posts/", PostsHandler)
 	r.HandleFunc("/posts/user/{id:[0-9]+}/", PostsByUserHandler)
+	r.HandleFunc("/posts/user/{id:[0-9]+}/page/{page:[0-9]+}/", PostsByUserHandler)
 	r.HandleFunc("/posts/brand/{id:[0-9]+}/", PostsByBrandHandler)
+	r.HandleFunc("/posts/brand/{id:[0-9]+}/page/{page:[0-9]+}/", PostsByBrandHandler)
 	r.HandleFunc("/users/", UsersHandler)
 	r.HandleFunc("/brands/", BrandsHandler)
 
@@ -93,12 +100,27 @@ func PostsByUserHandler(w http.ResponseWriter, r *http.Request) {
 
 	id, _ := strconv.Atoi(v["id"])
 
+	s, ok := v["page"]
+	if !ok {
+		s = "1"
+	}
+
+	current, _ := strconv.Atoi(s)
+	if current < 1 {
+		log.Printf("invalid page number: %d", current)
+		current = 1
+	}
+	offset := (current - 1) * PER_PAGE
+
 	var posts []PostDto
+	var total int
 	err := container.Do(func(tc *db.TxContainer) error {
 		var err error
 
 		l := NewMyLogic2(tc)
-		ps, err := l.getPostsByUserId(id)
+
+		var ps []db.PostView
+		total, ps, err = l.getPostsByUserId(id, PER_PAGE, offset)
 		if err != nil {
 			return err
 		}
@@ -121,6 +143,7 @@ func PostsByUserHandler(w http.ResponseWriter, r *http.Request) {
 		&ViewPage{
 			Dto:        posts,
 			ReturnPath: "/users/",
+			Pagination: NewPagination(total, current, fmt.Sprintf("/posts/user/%d/page/%%d/", id)),
 		})
 	if err != nil {
 		writeError(w, err)
@@ -134,13 +157,27 @@ func PostsByBrandHandler(w http.ResponseWriter, r *http.Request) {
 
 	id, _ := strconv.Atoi(v["id"])
 
+	s, ok := v["page"]
+	if !ok {
+		s = "1"
+	}
+
+	current, _ := strconv.Atoi(s)
+	if current < 1 {
+		log.Printf("invalid page number: %d", current)
+		current = 1
+	}
+	offset := (current - 1) * PER_PAGE
+
 	var posts []PostDto
+	var total int
 	err := container.Do(func(tc *db.TxContainer) error {
 		var err error
 
 		l := NewMyLogic2(tc)
 
-		ps, err := l.getPostsByBrandId(id)
+		var ps []db.PostView
+		total, ps, err = l.getPostsByBrandId(id, PER_PAGE, offset)
 		if err != nil {
 			return err
 		}
@@ -163,6 +200,7 @@ func PostsByBrandHandler(w http.ResponseWriter, r *http.Request) {
 		&ViewPage{
 			Dto:        posts,
 			ReturnPath: "/brands/",
+			Pagination: NewPagination(total, current, fmt.Sprintf("/posts/brand/%d/page/%%d/", id)),
 		})
 	if err != nil {
 		writeError(w, err)
@@ -278,6 +316,7 @@ func writeOutput(w http.ResponseWriter, title string, templateName string, data 
 		"formatTime": func(t time.Time) string {
 			return t.In(time.Local).Format("2006-01-02 15:04:05")
 		},
+		"safehtml": func(text string) template.HTML { return template.HTML(text) },
 	}
 
 	c, err := ioutil.ReadFile(templateName)
@@ -336,30 +375,48 @@ func (m *MyLogic2) getPostsAll() ([]db.PostView, error) {
 	return posts, nil
 }
 
-func (m *MyLogic2) getPostsByUserId(userId int) ([]db.PostView, error) {
+func (m *MyLogic2) getPostsByUserId(userId int, limit int, offset int) (int, []db.PostView, error) {
 	var posts []db.PostView
 
-	_, err := m.tc.Tx.Select(&posts, "select A.id, A.user_id as UserId, A.brand_id as BrandId, A.comment_no as CommentNo, A.title as Title, A.url as Url, A.ref_no as RefNo, A.ref_url as RefUrl, A.detail as Detail, A.post_time as PostTime, B.brand_name as BrandName, B.url as BrandUrl, C.post_id as PostNotificationPostId from post A inner join brand B on A.brand_id = B.id left join post_notification C on A.id = C.post_id where A.user_id=? order by A.post_time desc", userId)
+	sql := "select A.id, A.user_id as UserId, A.brand_id as BrandId, A.comment_no as CommentNo, A.title as Title, A.url as Url, A.ref_no as RefNo, A.ref_url as RefUrl, A.detail as Detail, A.post_time as PostTime, B.brand_name as BrandName, B.url as BrandUrl, C.post_id as PostNotificationPostId from post A inner join brand B on A.brand_id = B.id left join post_notification C on A.id = C.post_id where A.user_id=? order by A.post_time desc"
+
+	total, err := m.tc.Tx.SelectInt("select count(*) from ("+sql+")", userId)
 	if err != nil {
 		m.tc.Err = err
 		log.Println(err)
-		return nil, err
+		return 0, nil, err
 	}
 
-	return posts, nil
+	_, err = m.tc.Tx.Select(&posts, sql+" limit ? offset ?", userId, limit, offset)
+	if err != nil {
+		m.tc.Err = err
+		log.Println(err)
+		return 0, nil, err
+	}
+
+	return int(total), posts, nil
 }
 
-func (m *MyLogic2) getPostsByBrandId(brandId int) ([]db.PostView, error) {
+func (m *MyLogic2) getPostsByBrandId(brandId int, limit int, offset int) (int, []db.PostView, error) {
 	var posts []db.PostView
 
-	_, err := m.tc.Tx.Select(&posts, "select A.id, A.user_id as UserId, A.brand_id as BrandId, A.comment_no as CommentNo, A.title as Title, A.url as Url, A.ref_no as RefNo, A.ref_url as RefUrl, A.detail as Detail, A.post_time as PostTime, B.brand_name as BrandName, B.url as BrandUrl, C.post_id as PostNotificationPostId from post A inner join brand B on A.brand_id = B.id left join post_notification C on A.id = C.post_id where A.brand_id=? order by A.post_time desc", brandId)
+	sql := "select A.id, A.user_id as UserId, A.brand_id as BrandId, A.comment_no as CommentNo, A.title as Title, A.url as Url, A.ref_no as RefNo, A.ref_url as RefUrl, A.detail as Detail, A.post_time as PostTime, B.brand_name as BrandName, B.url as BrandUrl, C.post_id as PostNotificationPostId from post A inner join brand B on A.brand_id = B.id left join post_notification C on A.id = C.post_id where A.brand_id=? order by A.post_time desc"
+
+	total, err := m.tc.Tx.SelectInt("select count(*) from ("+sql+")", brandId)
 	if err != nil {
 		m.tc.Err = err
 		log.Println(err)
-		return nil, err
+		return 0, nil, err
 	}
 
-	return posts, nil
+	_, err = m.tc.Tx.Select(&posts, sql+" limit ? offset ?", brandId, limit, offset)
+	if err != nil {
+		m.tc.Err = err
+		log.Println(err)
+		return 0, nil, err
+	}
+
+	return int(total), posts, nil
 }
 
 func (m *MyLogic2) deletePostNotificationByPostId(ids []int) error {
@@ -470,4 +527,86 @@ type BrandDto struct {
 type ViewPage struct {
 	ReturnPath string
 	Dto        interface{}
+	Pagination Pagination
+}
+
+type Pagination struct {
+	PerPage     int
+	Width       int
+	Total       int
+	Current     int
+	Pages       []int
+	PrevEnabled bool
+	PrevPage    int
+	NextEnabled bool
+	NextPage    int
+	Path        string
+}
+
+func NewPagination(total int, current int, path string) Pagination {
+	p := Pagination{
+		Total:   total,
+		PerPage: PER_PAGE,
+		Current: current,
+		Width:   PAGE_WIDTH,
+		Path:    path,
+	}
+
+	p.calc()
+
+	return p
+}
+
+func (p *Pagination) calc() {
+	// TODO: 最大ページ数を指定された場合
+
+	med := p.Width / 2
+	if rem := p.Width % 2; rem > 0 {
+		med++
+	}
+
+	s := p.Current - med + 1
+	if s < 1 {
+		s = 1
+	}
+
+	e := s + p.Width - 1
+
+	mp := p.Total / p.PerPage
+	if rem := p.Total % p.PerPage; rem > 0 {
+		mp++
+	}
+
+	if e > mp {
+		e = mp
+		s = e - p.Width + 1
+		if s < 1 {
+			s = 1
+		}
+	}
+
+	for i := s; i <= e; i++ {
+		p.Pages = append(p.Pages, i)
+	}
+
+	if s > 1 {
+		p.PrevEnabled = true
+		p.PrevPage = p.Current - p.Width
+		if p.PrevPage < 1 {
+			p.PrevPage = 1
+		}
+
+	} else {
+		p.PrevEnabled = false
+	}
+
+	if e < mp {
+		p.NextEnabled = true
+		p.NextPage = p.Current + p.Width
+		if p.NextPage > mp {
+			p.NextPage = mp
+		}
+	} else {
+		p.NextEnabled = false
+	}
 }
