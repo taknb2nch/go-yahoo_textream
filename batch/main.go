@@ -59,6 +59,9 @@ func main() {
 			return err
 		}
 
+		fmt.Println(users)
+		os.Exit(0)
+
 		return nil
 	})
 
@@ -191,17 +194,19 @@ func getPage(url string, lastPostTime time.Time) []PostDto {
 		})
 
 		if skip {
+			sleepCrawle()
 			break
 		}
 
 		next := doc.Find("a:contains(\"次のページ\")").First()
 
 		if !isExist(next) {
+			sleepCrawle()
 			break
 		}
 
 		fmt.Println(".")
-		time.Sleep(time.Millisecond * 1500)
+		sleepCrawle()
 
 		href4, _ := next.Attr("href")
 		url = href4
@@ -210,6 +215,11 @@ func getPage(url string, lastPostTime time.Time) []PostDto {
 	//fmt.Printf("complete: %s\n", url)
 
 	return list
+}
+
+func sleepCrawle() {
+	fmt.Println(".")
+	time.Sleep(time.Millisecond * 1500)
 }
 
 func trim(s string) string {
@@ -452,7 +462,7 @@ func (m *MyLogic) getUsers() ([]db.UserPostTimeView, error) {
 	var users []db.UserPostTimeView
 	_, err := m.tc.Tx.Select(
 		&users,
-		"select A.id as Id, A.yahoo_id as YahooId, A.display_name as DisplayName, A.url as Url, B.post_time as PostTimeString from user A inner join (select user_id, max(post_time) as post_time from post A1 group by user_id) B on A.id = B.user_id order by A.id asc")
+		"select A.id as Id, A.yahoo_id as YahooId, A.display_name as DisplayName, A.url as Url, B.post_time as PostTimeString from user A left join (select user_id, max(post_time) as post_time from post A1 group by user_id) B on A.id = B.user_id order by A.id asc")
 	if err != nil {
 		m.tc.Err = err
 		log.Println(err)
@@ -460,8 +470,9 @@ func (m *MyLogic) getUsers() ([]db.UserPostTimeView, error) {
 	}
 
 	for i, _ := range users {
-		if users[i].PostTimeString != "" {
-			t, err := time.ParseInLocation("2006-01-02 15:04:05", users[i].PostTimeString, time.UTC)
+		if users[i].PostTimeString.Valid && users[i].PostTimeString.String != "" {
+			//if users[i].PostTimeString != "" {
+			t, err := time.ParseInLocation("2006-01-02 15:04:05", users[i].PostTimeString.String, time.UTC)
 			if err != nil {
 				return nil, err
 			} else {
