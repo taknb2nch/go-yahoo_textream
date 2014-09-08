@@ -17,8 +17,8 @@ import (
 )
 
 const (
-	PER_PAGE   = 30
-	PAGE_WIDTH = 5
+	PER_PAGE      = 30
+	DISPLAY_PAGES = 5
 )
 
 type Page struct {
@@ -30,6 +30,7 @@ func main() {
 	r := mux.NewRouter()
 	r.HandleFunc("/", IndexHandler)
 	r.HandleFunc("/posts/", PostsHandler)
+	r.HandleFunc("/posts/page/{page:[0-9]+}/", PostsHandler)
 	r.HandleFunc("/posts/user/{id:[0-9]+}/", PostsByUserHandler)
 	r.HandleFunc("/posts/user/{id:[0-9]+}/page/{page:[0-9]+}/", PostsByUserHandler)
 	r.HandleFunc("/posts/brand/{id:[0-9]+}/", PostsByBrandHandler)
@@ -66,14 +67,31 @@ func IndexHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func PostsHandler(w http.ResponseWriter, r *http.Request) {
-	//v := mux.Vars(r)
+	v := mux.Vars(r)
 	container := db.NewTxContainer()
 
-	var posts []db.PostView
+	s, ok := v["page"]
+	if !ok {
+		s = "1"
+	}
+
+	current, _ := strconv.Atoi(s)
+	if current < 1 {
+		log.Printf("invalid page number: %d", current)
+		current = 1
+	}
+	offset := (current - 1) * PER_PAGE
+
+	var posts []PostDto
+	var total int
+
 	err := container.Do(func(tc *db.TxContainer) error {
 		var err error
 
-		posts, err = NewMyLogic2(tc).getPostsAll()
+		var ps []db.PostView
+		total, ps, err = NewMyLogic2(tc).getPosts(PER_PAGE, offset)
+
+		posts = convertPostViewToPostDto(ps)
 
 		return err
 	})
@@ -87,6 +105,13 @@ func PostsHandler(w http.ResponseWriter, r *http.Request) {
 		&ViewPage{
 			Dto:        posts,
 			ReturnPath: "/",
+			Pagination: NewPagination(
+				total,
+				PER_PAGE,
+				DISPLAY_PAGES,
+				current,
+				fmt.Sprintf("/posts/page/%%d/"),
+			),
 		})
 	if err != nil {
 		writeError(w, err)
@@ -143,7 +168,13 @@ func PostsByUserHandler(w http.ResponseWriter, r *http.Request) {
 		&ViewPage{
 			Dto:        posts,
 			ReturnPath: "/users/",
-			Pagination: NewPagination(total, current, fmt.Sprintf("/posts/user/%d/page/%%d/", id)),
+			Pagination: NewPagination(
+				total,
+				PER_PAGE,
+				DISPLAY_PAGES,
+				current,
+				fmt.Sprintf("/posts/user/%d/page/%%d/", id),
+			),
 		})
 	if err != nil {
 		writeError(w, err)
@@ -200,7 +231,13 @@ func PostsByBrandHandler(w http.ResponseWriter, r *http.Request) {
 		&ViewPage{
 			Dto:        posts,
 			ReturnPath: "/brands/",
-			Pagination: NewPagination(total, current, fmt.Sprintf("/posts/brand/%d/page/%%d/", id)),
+			Pagination: NewPagination(
+				total,
+				PER_PAGE,
+				DISPLAY_PAGES,
+				current,
+				fmt.Sprintf("/posts/brand/%d/page/%%d/", id),
+			),
 		})
 	if err != nil {
 		writeError(w, err)
@@ -362,17 +399,26 @@ func NewMyLogic2(tc *db.TxContainer) *MyLogic2 {
 	return &MyLogic2{tc: tc}
 }
 
-func (m *MyLogic2) getPostsAll() ([]db.PostView, error) {
+func (m *MyLogic2) getPosts(limit int, offset int) (int, []db.PostView, error) {
 	var posts []db.PostView
 
-	_, err := m.tc.Tx.Select(&posts, "select A.id, A.user_id as UserId, A.brand_id as BrandId, A.comment_no as CommentNo, A.title as Title, A.url as Url, A.ref_no as RefNo, A.ref_url as RefUrl, A.detail as Detail, A.post_time as PostTime, B.brand_name as BrandName, B.url as BrandUrl from post A inner join brand B on A.brand_id = B.id order by A.post_time desc")
+	sql := "select A.id, A.user_id as UserId, A.brand_id as BrandId, A.comment_no as CommentNo, A.title as Title, A.url as Url, A.ref_no as RefNo, A.ref_url as RefUrl, A.detail as Detail, A.post_time as PostTime, B.brand_name as BrandName, B.url as BrandUrl from post A inner join brand B on A.brand_id = B.id order by A.post_time desc"
+
+	total, err := m.tc.Tx.SelectInt("select count(*) from (" + sql + ")")
 	if err != nil {
 		m.tc.Err = err
 		log.Println(err)
-		return nil, err
+		return 0, nil, err
 	}
 
-	return posts, nil
+	_, err = m.tc.Tx.Select(&posts, sql+" limit ? offset ?", limit, offset)
+	if err != nil {
+		m.tc.Err = err
+		log.Println(err)
+		return 0, nil, err
+	}
+
+	return int(total), posts, nil
 }
 
 func (m *MyLogic2) getPostsByUserId(userId int, limit int, offset int) (int, []db.PostView, error) {
@@ -533,25 +579,25 @@ type ViewPage struct {
 }
 
 type Pagination struct {
-	PerPage     int
-	Width       int
-	Total       int
-	Current     int
-	Pages       []int
-	PrevEnabled bool
-	PrevPage    int
-	NextEnabled bool
-	NextPage    int
-	Path        string
+	PerPage      int
+	DisplayPages int
+	Total        int
+	Current      int
+	Pages        []int
+	PrevEnabled  bool
+	PrevPage     int
+	NextEnabled  bool
+	NextPage     int
+	Path         string
 }
 
-func NewPagination(total int, current int, path string) Pagination {
+func NewPagination(total int, perPage int, displayPages int, current int, path string) Pagination {
 	p := Pagination{
-		Total:   total,
-		PerPage: PER_PAGE,
-		Current: current,
-		Width:   PAGE_WIDTH,
-		Path:    path,
+		Total:        total,
+		PerPage:      perPage,
+		Current:      current,
+		DisplayPages: displayPages,
+		Path:         path,
 	}
 
 	p.calc()
@@ -560,7 +606,6 @@ func NewPagination(total int, current int, path string) Pagination {
 }
 
 func (p *Pagination) calc() {
-	// TODO: 最大ページ数を指定された場合
 	mp := p.Total / p.PerPage
 	if rem := p.Total % p.PerPage; rem > 0 {
 		mp++
@@ -573,8 +618,8 @@ func (p *Pagination) calc() {
 		return
 	}
 
-	med := p.Width / 2
-	if rem := p.Width % 2; rem > 0 {
+	med := p.DisplayPages / 2
+	if rem := p.DisplayPages % 2; rem > 0 {
 		med++
 	}
 
@@ -583,11 +628,11 @@ func (p *Pagination) calc() {
 		s = 1
 	}
 
-	e := s + p.Width - 1
+	e := s + p.DisplayPages - 1
 
 	if e > mp {
 		e = mp
-		s = e - p.Width + 1
+		s = e - p.DisplayPages + 1
 		if s < 1 {
 			s = 1
 		}
@@ -599,7 +644,7 @@ func (p *Pagination) calc() {
 
 	if s > 1 {
 		p.PrevEnabled = true
-		p.PrevPage = p.Current - p.Width
+		p.PrevPage = p.Current - p.DisplayPages
 		if p.PrevPage < 1 {
 			p.PrevPage = 1
 		}
@@ -610,7 +655,7 @@ func (p *Pagination) calc() {
 
 	if e < mp {
 		p.NextEnabled = true
-		p.NextPage = p.Current + p.Width
+		p.NextPage = p.Current + p.DisplayPages
 		if p.NextPage > mp {
 			p.NextPage = mp
 		}
