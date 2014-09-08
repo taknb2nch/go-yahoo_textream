@@ -465,11 +465,13 @@ func (m *MyLogic2) getUsers() ([]db.UserPostTimeView, error) {
 	}
 
 	for i, _ := range users {
-		t, err := time.ParseInLocation("2006-01-02 15:04:05", users[i].PostTimeString, time.UTC)
-		if err != nil {
-			return nil, err
-		} else {
-			users[i].PostTime = t
+		if users[i].PostTimeString.Valid && users[i].PostTimeString.String != "" {
+			t, err := time.ParseInLocation("2006-01-02 15:04:05", users[i].PostTimeString.String, time.UTC)
+			if err != nil {
+				return nil, err
+			} else {
+				users[i].PostTime = t
+			}
 		}
 	}
 

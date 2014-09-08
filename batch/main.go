@@ -62,11 +62,14 @@ func main() {
 		return nil
 	})
 
-	ch := make(chan PageResult, 3)
+	ch := make(chan PageResult, len(users))
+	chP := make(chan PageParser, 3)
+	for i := 0; i < 3; i++ {
+		chP <- PageParser{}
+	}
 
 	for _, user := range users {
-
-		go func(c chan<- PageResult, u db.UserPostTimeView) {
+		go func(c chan<- PageResult, cp chan PageParser, u db.UserPostTimeView) {
 			var lastPostTime time.Time
 			if u.PostTime.IsZero() {
 				lastPostTime = time.Now().AddDate(-1, 0, 0)
@@ -74,13 +77,17 @@ func main() {
 				lastPostTime = u.PostTime
 			}
 
-			posts := getPage(u.Url, lastPostTime)
+			p := <-cp
+
+			posts := p.getPage(u.Url, lastPostTime)
+
+			cp <- p
 
 			ch <- PageResult{
 				User:  u,
 				Posts: posts,
 			}
-		}(ch, user)
+		}(ch, chP, user)
 	}
 
 	for i := 0; i < len(users); i++ {
@@ -142,7 +149,10 @@ func readUsersFromJson() []UserJson {
 	return users
 }
 
-func getPage(url string, lastPostTime time.Time) []PostDto {
+type PageParser struct {
+}
+
+func (p *PageParser) getPage(url string, lastPostTime time.Time) []PostDto {
 	list := make([]PostDto, 0)
 
 	skip := false
@@ -157,11 +167,11 @@ func getPage(url string, lastPostTime time.Time) []PostDto {
 			post := PostDto{}
 
 			anchor := sel.Find("div.breadcrumbs ul li a")
-			post.BrandUrl, post.BrandName, _ = getHrefAndText(anchor)
+			post.BrandUrl, post.BrandName, _ = p.getHrefAndText(anchor)
 
-			post.CommentNo, _ = trimCommentNo(sel.Find("div.commentHeaderInfo div").Text())
+			post.CommentNo, _ = p.trimCommentNo(sel.Find("div.commentHeaderInfo div").Text())
 			anchor2 := sel.Find("div.commentHeaderInfo h2 a")
-			post.Url, post.Title, _ = getHrefAndText(anchor2)
+			post.Url, post.Title, _ = p.getHrefAndText(anchor2)
 
 			uptime := sel.Find("div.ttlInfoDateNum p").Text()
 			// 取得した日時は+09:00 JST
@@ -175,15 +185,15 @@ func getPage(url string, lastPostTime time.Time) []PostDto {
 			detail := sel.Find("div.detail")
 
 			anchor4 := detail.Find("span a")
-			if isExist(anchor4) {
+			if p.isExist(anchor4) {
 				post.HasRef = true
-				post.RefUrl, post.RefNo, _ = getHrefAndText(anchor4)
-				post.RefNo, _ = trimRefNo(post.RefNo)
+				post.RefUrl, post.RefNo, _ = p.getHrefAndText(anchor4)
+				post.RefNo, _ = p.trimRefNo(post.RefNo)
 			} else {
 				post.HasRef = false
 			}
 
-			post.Detail = trim(detail.Find("p").Text())
+			post.Detail = p.trim(detail.Find("p").Text())
 
 			list = append(list, post)
 
@@ -191,48 +201,52 @@ func getPage(url string, lastPostTime time.Time) []PostDto {
 		})
 
 		if skip {
+			p.sleepCrawle()
 			break
 		}
 
 		next := doc.Find("a:contains(\"次のページ\")").First()
 
-		if !isExist(next) {
+		if !p.isExist(next) {
+			p.sleepCrawle()
 			break
 		}
 
 		fmt.Println(".")
-		time.Sleep(time.Millisecond * 1500)
+		p.sleepCrawle()
 
 		href4, _ := next.Attr("href")
 		url = href4
 	}
 
-	//fmt.Printf("complete: %s\n", url)
-
 	return list
 }
 
-func trim(s string) string {
+func (p *PageParser) sleepCrawle() {
+	time.Sleep(time.Millisecond * 1100)
+}
+
+func (p *PageParser) trim(s string) string {
 	return strings.Trim(s, " 　\n\r\t")
 }
 
-func isExist(sel *goquery.Selection) bool {
+func (p *PageParser) isExist(sel *goquery.Selection) bool {
 	return len(sel.Parent().Nodes) > 0
 }
 
-func getHrefAndText(sel *goquery.Selection) (string, string, error) {
+func (p *PageParser) getHrefAndText(sel *goquery.Selection) (string, string, error) {
 	href, exist := sel.Attr("href")
 	if !exist {
 		return "", "", errors.New("href not found")
 	}
 
-	text := trim(sel.Text())
+	text := p.trim(sel.Text())
 
 	return href, text, nil
 }
 
-func trimCommentNo(s string) (string, error) {
-	str := strings.ToLower(trim(s))
+func (p *PageParser) trimCommentNo(s string) (string, error) {
+	str := strings.ToLower(p.trim(s))
 	if !strings.HasPrefix(str, "no.") {
 		return "", fmt.Errorf("not comment no. : %s", s)
 	}
@@ -240,7 +254,7 @@ func trimCommentNo(s string) (string, error) {
 	return str[3:], nil
 }
 
-func trimRefNo(s string) (string, error) {
+func (p *PageParser) trimRefNo(s string) (string, error) {
 	i := strings.Index(s, " ")
 	if i > -1 {
 		return s[i+1:], nil
@@ -452,7 +466,7 @@ func (m *MyLogic) getUsers() ([]db.UserPostTimeView, error) {
 	var users []db.UserPostTimeView
 	_, err := m.tc.Tx.Select(
 		&users,
-		"select A.id as Id, A.yahoo_id as YahooId, A.display_name as DisplayName, A.url as Url, B.post_time as PostTimeString from user A inner join (select user_id, max(post_time) as post_time from post A1 group by user_id) B on A.id = B.user_id order by A.id asc")
+		"select A.id as Id, A.yahoo_id as YahooId, A.display_name as DisplayName, A.url as Url, B.post_time as PostTimeString from user A left join (select user_id, max(post_time) as post_time from post A1 group by user_id) B on A.id = B.user_id order by A.id asc")
 	if err != nil {
 		m.tc.Err = err
 		log.Println(err)
@@ -460,8 +474,9 @@ func (m *MyLogic) getUsers() ([]db.UserPostTimeView, error) {
 	}
 
 	for i, _ := range users {
-		if users[i].PostTimeString != "" {
-			t, err := time.ParseInLocation("2006-01-02 15:04:05", users[i].PostTimeString, time.UTC)
+		if users[i].PostTimeString.Valid && users[i].PostTimeString.String != "" {
+			//if users[i].PostTimeString != "" {
+			t, err := time.ParseInLocation("2006-01-02 15:04:05", users[i].PostTimeString.String, time.UTC)
 			if err != nil {
 				return nil, err
 			} else {
