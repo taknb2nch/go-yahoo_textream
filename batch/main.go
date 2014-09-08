@@ -59,9 +59,6 @@ func main() {
 			return err
 		}
 
-		fmt.Println(users)
-		os.Exit(0)
-
 		return nil
 	})
 
@@ -218,7 +215,6 @@ func getPage(url string, lastPostTime time.Time) []PostDto {
 }
 
 func sleepCrawle() {
-	fmt.Println(".")
 	time.Sleep(time.Millisecond * 1500)
 }
 
