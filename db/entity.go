@@ -17,7 +17,7 @@ type UserPostTimeView struct {
 	YahooId        string
 	DisplayName    sql.NullString
 	Url            string
-	PostTimeString string
+	PostTimeString sql.NullString
 	PostTime       time.Time
 	NewPostCount   int
 }
