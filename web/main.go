@@ -561,6 +561,17 @@ func NewPagination(total int, current int, path string) Pagination {
 
 func (p *Pagination) calc() {
 	// TODO: 最大ページ数を指定された場合
+	mp := p.Total / p.PerPage
+	if rem := p.Total % p.PerPage; rem > 0 {
+		mp++
+	}
+
+	if mp < p.Current {
+		p.PrevEnabled = false
+		p.NextEnabled = false
+		p.Pages = make([]int, 0)
+		return
+	}
 
 	med := p.Width / 2
 	if rem := p.Width % 2; rem > 0 {
@@ -573,11 +584,6 @@ func (p *Pagination) calc() {
 	}
 
 	e := s + p.Width - 1
-
-	mp := p.Total / p.PerPage
-	if rem := p.Total % p.PerPage; rem > 0 {
-		mp++
-	}
 
 	if e > mp {
 		e = mp
