@@ -21,6 +21,10 @@ const (
 	PAGE_WIDTH = 5
 )
 
+const (
+	NEW_BRAND_KEEP_DAYS = 3
+)
+
 type Page struct {
 	Title     string
 	Container template.HTML
@@ -444,7 +448,8 @@ func (m *MyLogic2) deletePostNotificationByPostId(ids []int) error {
 
 func (m *MyLogic2) deleteBrandNotification() error {
 	// 一定期間表示するには日時を持たせておく
-	_, err := m.tc.Tx.Exec("delete from brand_notification")
+	t := time.Now().AddDate(0, 0, NEW_BRAND_KEEP_DAYS*-1)
+	_, err := m.tc.Tx.Exec("delete from brand_notification where post_time<?", t)
 	if err != nil {
 		m.tc.Err = err
 		log.Println(err)

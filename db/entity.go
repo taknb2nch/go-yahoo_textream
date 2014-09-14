@@ -39,7 +39,8 @@ type BrandPostTimeView struct {
 }
 
 type BrandNotification struct {
-	BrandId int
+	BrandId  int
+	PostTime time.Time
 }
 
 type Post struct {
