@@ -101,6 +101,7 @@ func initDb(createTable bool) *gorp.DbMap {
 
 	t = dbmap.AddTableWithName(BrandNotification{}, "brand_notification").SetKeys(false, "BrandId")
 	t.ColMap("BrandId").Rename("brand_id")
+	t.ColMap("PostTime").Rename("post_time")
 
 	t = dbmap.AddTableWithName(PostNotification{}, "post_notification").SetKeys(false, "PostId")
 	t.ColMap("PostId").Rename("post_id")

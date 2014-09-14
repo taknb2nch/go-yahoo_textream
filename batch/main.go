@@ -331,7 +331,7 @@ func (m *MyLogic) savePosts(userId int, posts []PostDto) error {
 				return err
 			}
 
-			err = m.addBrandNotification(&db.BrandNotification{BrandId: brand.Id})
+			err = m.addBrandNotification(&db.BrandNotification{BrandId: brand.Id, PostTime: time.Now()})
 			if err != nil {
 				return err
 			}
