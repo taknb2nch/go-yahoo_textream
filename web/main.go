@@ -1,7 +1,7 @@
 package main
 
 import (
-	"bytes"
+	//"bytes"
 	"fmt"
 	"html/template"
 	"io/ioutil"
@@ -22,8 +22,8 @@ const (
 )
 
 type Page struct {
-	Title     string
-	Container template.HTML
+	Title string
+	*ViewPage
 }
 
 func main() {
@@ -293,7 +293,7 @@ func convertBrandPostTimeViewToBrandDto(bs []db.BrandPostTimeView) []BrandDto {
 	return brands
 }
 
-var baseTmpl = template.Must(template.ParseFiles("./template/base.tmpl"))
+//var baseTmpl = template.Must(template.ParseFiles("./template/base.tmpl"))
 
 func UsersHandler(w http.ResponseWriter, r *http.Request) {
 	container := db.NewTxContainer()
@@ -348,7 +348,6 @@ func BrandsHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func writeOutput(w http.ResponseWriter, title string, templateName string, data *ViewPage) error {
-
 	funcMap := template.FuncMap{
 		"formatTime": func(t time.Time) string {
 			return t.In(time.Local).Format("2006-01-02 15:04:05")
@@ -356,27 +355,44 @@ func writeOutput(w http.ResponseWriter, title string, templateName string, data 
 		"safehtml": func(text string) template.HTML { return template.HTML(text) },
 	}
 
-	c, err := ioutil.ReadFile(templateName)
+	c, err := ioutil.ReadFile("./template/base.tmpl")
 	if err != nil {
 		return err
 	}
 
-	//t := template.Must(template.ParseFiles(templateName))
-	t := template.Must(template.New("template").Funcs(funcMap).Parse(string(c)))
-
-	var b bytes.Buffer
-
-	err = t.Execute(&b, data)
+	t, err := template.New("base").Funcs(funcMap).Parse(string(c))
 	if err != nil {
 		return err
+	}
+
+	c, err = ioutil.ReadFile(templateName)
+	if err != nil {
+		return err
+	}
+
+	t, err = t.Parse(fmt.Sprintf("{{define \"container\"}}%s{{end}}", string(c)))
+	if err != nil {
+		return err
+	}
+
+	if data != nil && data.Pagination.IsEnabled {
+		c, err = ioutil.ReadFile("./template/pagination.tmpl")
+		if err != nil {
+			return err
+		}
+
+		t, err = t.Parse(string(c))
+		if err != nil {
+			return err
+		}
 	}
 
 	p := &Page{
-		Title:     title,
-		Container: template.HTML(b.String()),
+		Title:    title,
+		ViewPage: data,
 	}
 
-	err = baseTmpl.Execute(w, p)
+	err = t.Execute(w, p)
 	if err != nil {
 		return err
 	}
@@ -589,6 +605,7 @@ type Pagination struct {
 	NextEnabled  bool
 	NextPage     int
 	Path         string
+	IsEnabled    bool
 }
 
 func NewPagination(total int, perPage int, displayPages int, current int, path string) Pagination {
@@ -601,6 +618,7 @@ func NewPagination(total int, perPage int, displayPages int, current int, path s
 	}
 
 	p.calc()
+	p.IsEnabled = true
 
 	return p
 }
