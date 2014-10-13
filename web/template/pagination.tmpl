@@ -1,0 +1,25 @@
+{{define "pagination"}}
+<div class="text-center">
+	<ul class="pagination">
+{{if .Pagination.PrevEnabled}}
+		<li><a href="{{printf .Pagination.Path .Pagination.PrevPage}}">&laquo;</a></li>
+{{else}}
+		<li class="disabled"><a href="#">&laquo;</a></li>
+{{end}}
+{{$current := .Pagination.Current}}
+{{$path := .Pagination.Path}}
+{{range $i, $page := .Pagination.Pages}}
+	{{if eq $page $current}}
+		<li class="active"><a href="{{printf $path $page}}">{{$page}}<span class="sr-only">(current)</span></a></li>
+	{{else}}
+		<li><a href="{{printf $path $page}}">{{$page}}</a></li>
+	{{end}}
+{{end}}
+{{if .Pagination.NextEnabled}}
+		<li><a href="{{printf .Pagination.Path .Pagination.NextPage}}">&raquo;</a></li>
+{{else}}
+		<li class="disabled"><a href="#">&raquo;</a></li>
+{{end}}
+	</ul>
+</div>
+{{end}}
